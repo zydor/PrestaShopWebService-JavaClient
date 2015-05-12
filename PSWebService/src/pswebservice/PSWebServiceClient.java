@@ -36,8 +36,11 @@ import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.w3c.dom.Document;
@@ -289,7 +292,129 @@ public class PSWebServiceClient {
             
     }    
     
+    /**
+     * Head method (HEAD) a resource
+     *
+     * @param opt Map representing resource for head request.
+     * @return XMLElement status_code, response
+     */
+    public Map<String,String> head(Map<String,Object> opt) throws PrestaShopWebserviceException
+    {
+        String completeUrl;
+            if (opt.containsKey("url")){
+                    completeUrl = (String) opt.get("url");
+            }
+            else if (opt.containsKey("resource"))
+            {
+                    completeUrl = this.url+"/api/"+opt.get("resource");
+                    if (opt.containsKey("id"))
+                            completeUrl += "/"+opt.get("id");
+
+                    String[] params = new String[]{"filter", "display", "sort", "limit"};
+                    for (String p : params)
+                        if (opt.containsKey("p"))
+                            try {
+                                completeUrl += "?"+p+"="+URLEncoder.encode((String)opt.get(p), "UTF-8")+"&";
+                            } catch (UnsupportedEncodingException ex) {
+                                throw new PrestaShopWebserviceException("URI encodin excepton: "+ex.toString());
+                            }
+
+            }
+            else
+                    throw new PrestaShopWebserviceException("Bad parameters given");
+            
+            
+            
+            HttpHead httphead = new HttpHead(completeUrl);
+            HashMap<String,Object> resoult = this.executeRequest(httphead);
+            this.checkStatusCode((int) resoult.get("status_code"));// check the response validity
+            
+            HashMap<String,String> headers = new HashMap();
+            for(Header h : (Header[])resoult.get("header")){
+                headers.put(h.getName(),h.getValue());
+            }
+            return headers;
+    }    
+ 
+    /**
+     * Edit (PUT) a resource
+     * <p>Unique parameter must take : <br><br>
+     * 'resource' => Resource name ,<br>
+     * 'id' => ID of a resource you want to edit,<br>
+     * 'putXml' => Modified XML string of a resource<br><br>
+     * @param opt representing resource to edit.
+     * @return 
+     */
+    public Document edit(Map<String,Object> opt) throws PrestaShopWebserviceException
+    {
+            
+        String xml ="";
+            String completeUrl;
+            if (opt.containsKey("url"))
+                    completeUrl = (String) opt.get("url");
+            else if (((opt.containsKey("resource") && opt.containsKey("id"))  || opt.containsKey("url")) && opt.containsKey("putXml"))
+            {
+                    completeUrl = (opt.containsKey("url")) ? (String)opt.get("url") : this.url+"/api/"+opt.get("resource")+"/"+opt.get("id") ;
+                    xml = (String) opt.get("putXml");
+                    if (opt.containsKey("id_shop"))
+                            completeUrl += "&id_shop="+opt.get("id_shop");
+                    if (opt.containsKey("id_group_shop"))
+                            completeUrl += "&id_group_shop="+opt.get("id_group_shop");
+            }
+            else
+                throw new PrestaShopWebserviceException("Bad parameters given");
+
+
+            StringEntity entity = new StringEntity(xml, ContentType.create("text/xml", Consts.UTF_8));
+            entity.setChunked(true);
+            
+            HttpPut httpput = new HttpPut(completeUrl);
+            httpput.setEntity(entity);
+            HashMap<String,Object> resoult = this.executeRequest(httpput);
+            this.checkStatusCode((int) resoult.get("status_code"));// check the response validity
+            
+            try {  
+                Document doc = this.parseXML((InputStream)resoult.get("response"));
+                response.close();
+                return doc;
+            } catch (ParserConfigurationException | SAXException | IOException ex) {
+                throw new PrestaShopWebserviceException("Response XML Parse exception: "+ex.toString());
+            }  
+    } 
     
+    /**
+     * Delete (DELETE) a resource.
+     * Unique parameter must take : <br><br>
+     * 'resource' => Resource name<br>
+     * 'id' => ID or array which contains IDs of a resource(s) you want to delete<br><br>
+     * @param opt representing resource to delete.
+     * @return 
+     */
+    public boolean delete(Map<String,Object> opt) throws PrestaShopWebserviceException
+    {
+        String completeUrl = "";
+            if (opt.containsKey("url"))
+                    completeUrl = (String) opt.get("url");
+            else if (opt.containsKey("resource") && opt.containsKey("id"))
+                    //if (opt.get("id"))
+                    //        completeUrl = this.url+"/api/"+opt.get("resource")+"/?id=[".implode(',', $options['id'])+"]";
+                    //else
+                            completeUrl = this.url+"/api/"+opt.get("resource")+"/"+opt.get("id");
+            
+            if (opt.containsKey("id_shop"))
+                    completeUrl += "&id_shop="+opt.get("id_shop");
+            if (opt.containsKey("id_group_shop"))
+                    completeUrl += "&id_group_shop="+opt.get("id_group_shop");
+            
+            
+            HttpDelete httpdelete = new HttpDelete(completeUrl);
+            HashMap<String,Object> resoult = this.executeRequest(httpdelete);
+
+            this.checkStatusCode((int) resoult.get("status_code"));// check the response validity    
+            
+            return true;
+    }    
+
     private String readInputStreamAsString(InputStream in) 
         throws IOException {
 
