@@ -16,6 +16,8 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -61,6 +63,7 @@ public class PSWebServiceClient {
     
     private final CloseableHttpClient httpclient;
     private CloseableHttpResponse response;
+    private HashMap<String,Object> responseReturns;
 
     /**
      * PrestaShopWebservice constructor. 
@@ -114,10 +117,18 @@ public class PSWebServiceClient {
                     case 401: throw new PrestaShopWebserviceException(String.format(error_label, status_code, "Unauthorized"));
                     case 404: throw new PrestaShopWebserviceException(String.format(error_label, status_code, "Not Found"));
                     case 405: throw new PrestaShopWebserviceException(String.format(error_label, status_code, "Method Not Allowed"));
-                    case 500: throw new PrestaShopWebserviceException(String.format(error_label, status_code, "Internal Server Error"));
+                    case 500: throw new PrestaShopWebserviceException(String.format(error_label, status_code, "Internal Server Error"),this);
                     default: throw new PrestaShopWebserviceException("This call to PrestaShop Web Services returned an unexpected HTTP status of:" + status_code);
             }
     }   
+    
+    protected String getResponseContent() {
+        try {
+            return readInputStreamAsString((InputStream) this.responseReturns.get("response"));
+        } catch (IOException ex) {
+            return "";
+        }
+    }
     
     /**
      * Handles request to PrestaShop Webservice. Can throw exception.
@@ -143,15 +154,17 @@ public class PSWebServiceClient {
                 for(Header h : headers){
                     System.out.println(h.getName()+" : "+h.getValue());
                 }
-                System.out.println("====================ResponseBody================");
-                System.out.println(readInputStreamAsString(entity.getContent()));	
+                //System.out.println("====================ResponseBody================");
+                //System.out.println(readInputStreamAsString(entity.getContent()));
+                
             }
             
 
             returns.put("status_code", response.getStatusLine().getStatusCode());
             returns.put("response", entity.getContent());
             returns.put("header", headers );
-            //response.close();
+
+            this.responseReturns = returns;
             
         } catch (IOException ex) {
             throw new PrestaShopWebserviceException("Bad HTTP response : "+ex.toString());
@@ -198,7 +211,7 @@ public class PSWebServiceClient {
 				completeUrl += "&id_group_shop="+(String)opt.get("id_group_shop");
                            
                     StringEntity entity = new StringEntity(xml, ContentType.create("text/xml", Consts.UTF_8));
-                    entity.setChunked(true);
+                    //entity.setChunked(true);
                     
                     HttpPost httppost = new HttpPost(completeUrl);
                     httppost.setEntity(entity);
@@ -366,7 +379,7 @@ public class PSWebServiceClient {
 
 
             StringEntity entity = new StringEntity(xml, ContentType.create("text/xml", Consts.UTF_8));
-            entity.setChunked(true);
+            //entity.setChunked(true);
             
             HttpPut httpput = new HttpPut(completeUrl);
             httpput.setEntity(entity);
@@ -425,8 +438,10 @@ public class PSWebServiceClient {
           byte b = (byte)result;
           buf.write(b);
           result = bis.read();
-        }        
-        return buf.toString();
+        }      
+        
+        String returns = buf.toString();
+        return returns;
     }  
     
     public String DocumentToString(Document doc) throws TransformerException {
