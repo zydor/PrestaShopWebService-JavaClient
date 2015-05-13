@@ -9,10 +9,15 @@ package pswebservice;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.Map;
@@ -45,6 +50,12 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.entity.mime.HttpMultipartMode;
+import org.apache.http.entity.mime.MultipartEntity;
+import org.apache.http.entity.mime.MultipartEntityBuilder;
+import org.apache.http.entity.mime.content.ByteArrayBody;
+import org.apache.http.entity.mime.content.ContentBody;
+import org.apache.http.entity.mime.content.FileBody;
 import org.w3c.dom.Document;
 import org.xml.sax.SAXException;
 
@@ -112,11 +123,11 @@ public class PSWebServiceClient {
             {
                     case 200:
                     case 201:	break;
-                    case 204: throw new PrestaShopWebserviceException(String.format(error_label, status_code, "No content"));
-                    case 400: throw new PrestaShopWebserviceException(String.format(error_label, status_code, "Bad Request"));
-                    case 401: throw new PrestaShopWebserviceException(String.format(error_label, status_code, "Unauthorized"));
-                    case 404: throw new PrestaShopWebserviceException(String.format(error_label, status_code, "Not Found"));
-                    case 405: throw new PrestaShopWebserviceException(String.format(error_label, status_code, "Method Not Allowed"));
+                    case 204: throw new PrestaShopWebserviceException(String.format(error_label, status_code, "No content"),this);
+                    case 400: throw new PrestaShopWebserviceException(String.format(error_label, status_code, "Bad Request"),this);
+                    case 401: throw new PrestaShopWebserviceException(String.format(error_label, status_code, "Unauthorized"),this);
+                    case 404: throw new PrestaShopWebserviceException(String.format(error_label, status_code, "Not Found"),this);
+                    case 405: throw new PrestaShopWebserviceException(String.format(error_label, status_code, "Method Not Allowed"),this);
                     case 500: throw new PrestaShopWebserviceException(String.format(error_label, status_code, "Internal Server Error"),this);
                     default: throw new PrestaShopWebserviceException("This call to PrestaShop Web Services returned an unexpected HTTP status of:" + status_code);
             }
@@ -402,6 +413,7 @@ public class PSWebServiceClient {
      * 'id' => ID or array which contains IDs of a resource(s) you want to delete<br><br>
      * @param opt representing resource to delete.
      * @return 
+     * @throws pswebservice.PrestaShopWebserviceException 
      */
     public boolean delete(Map<String,Object> opt) throws PrestaShopWebserviceException
     {
@@ -427,6 +439,51 @@ public class PSWebServiceClient {
             
             return true;
     }    
+    
+     /**
+     * 
+     * @param imgURL
+     * @param productId
+     * @return xml response
+     * @throws pswebservice.PrestaShopWebserviceException
+     * @throws java.net.MalformedURLException
+     */
+    public Document addImg(String imgURL,Integer productId) throws PrestaShopWebserviceException, MalformedURLException, IOException
+    {
+                        
+        URL imgUrl = new URL(imgURL);
+        InputStream is = imgUrl.openStream();
+           
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        int nRead;
+        byte[] data = new byte[16384];
+        while ((nRead = is.read(data, 0, data.length)) != -1) {
+          buffer.write(data, 0, nRead);
+        }
+        buffer.flush();        
+        
+        String completeUrl =  this.url+"/api/images/products/"+ String.valueOf(productId);
+        HttpPost httppost = new HttpPost(completeUrl);          
+
+        MultipartEntityBuilder builder = MultipartEntityBuilder.create();         
+        builder.setMode(HttpMultipartMode.BROWSER_COMPATIBLE);
+        builder.addPart("image", new ByteArrayBody(buffer.toByteArray(), "upload.jpg"));
+        
+        HttpEntity entity = builder.build();       
+        httppost.setEntity(entity);
+
+        HashMap<String,Object> resoult = this.executeRequest(httppost);
+        this.checkStatusCode((Integer)resoult.get("status_code"));
+
+        try {  
+            Document doc = this.parseXML((InputStream)resoult.get("response"));
+            response.close();
+            return doc;
+        } catch (ParserConfigurationException | SAXException | IOException ex) {
+            throw new PrestaShopWebserviceException("Response XML Parse exception");
+        }
+
+    }
 
     private String readInputStreamAsString(InputStream in) 
         throws IOException {

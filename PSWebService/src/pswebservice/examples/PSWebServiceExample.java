@@ -6,12 +6,15 @@
  */
 package pswebservice.examples;
 
+import java.io.IOException;
 import java.util.HashMap;
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.CDATASection;
+import org.w3c.dom.CharacterData;
+import org.w3c.dom.NodeList;
 import pswebservice.PSWebServiceClient;
 import pswebservice.PrestaShopWebserviceException;
 
@@ -27,7 +30,7 @@ public class PSWebServiceExample {
      * @throws pswebservice.PrestaShopWebserviceException
      * @throws javax.xml.transform.TransformerConfigurationException
      */  
-    public static void main(String[] args) throws PrestaShopWebserviceException, TransformerConfigurationException, TransformerException {
+    public static void main(String[] args) throws PrestaShopWebserviceException, TransformerConfigurationException, TransformerException, IOException {
         
         PSWebServiceWrapper ws = new PSWebServiceWrapper();
         ws.addProductExample();
@@ -38,8 +41,8 @@ public class PSWebServiceExample {
 
 class PSWebServiceWrapper {
 
-    private final String shopUrl = "http://www.exampleshop.com";
-    private final String key = "BEISAFUGHXR3JDJFEQ1Z87UWXKXYZM5JDRE8BWDS";
+    private final String shopUrl = "http://www.example.com";
+    private final String key = "HXR3JDWFIYQWSDLWQQJFEQ1Z87UWXKXYZM5JDRE8BWDS";
     private final boolean debug = false;
     private PSWebServiceClient ws;
     
@@ -47,7 +50,7 @@ class PSWebServiceWrapper {
         this.ws = new PSWebServiceClient(shopUrl,key,debug);
     }
     
-    public void addProductExample() throws PrestaShopWebserviceException, TransformerException{
+    public void addProductExample() throws PrestaShopWebserviceException, TransformerException, IOException{
         
         HashMap<String,Object> getSchemaOpt = new HashMap();
         getSchemaOpt.put("url",shopUrl+"/api/products?schema=blank");       
@@ -119,8 +122,27 @@ class PSWebServiceWrapper {
         Document product = ws.add(productOpt);     
         
         System.out.println(ws.DocumentToString(product));
+        
+        Document productImg = ws.addImg("http://example/exampleImg.jpg", Integer.valueOf(getCharacterDataFromElement((Element) product.getElementsByTagName("id").item(0))));
 
+        System.out.println(ws.DocumentToString(productImg));
+        
     }
     
-    
+    public static String getCharacterDataFromElement(Element e) {
+
+        NodeList list = e.getChildNodes();
+        String data;
+
+        for(int index = 0; index < list.getLength(); index++){
+            if(list.item(index) instanceof CharacterData){
+                CharacterData child = (CharacterData) list.item(index);
+                data = child.getData();
+
+                if(data != null && data.trim().length() > 0)
+                    return child.getData();
+            }
+        }
+        return "";
+    }
 }
